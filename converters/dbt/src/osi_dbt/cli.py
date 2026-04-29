@@ -13,10 +13,24 @@ from pathlib import Path
 import yaml
 
 from osi import OSIDocument
+from osi_dbt.converter_issues import ConverterIssueType
 from osi_dbt.msi_to_osi import MSIToOSIConverter
 from osi_dbt.osi_to_msi import OSIToMSIConverter
 
 from metricflow_semantics.model.dbt_manifest_parser import parse_manifest_from_dbt_generated_manifest
+
+_ISSUE_REASON: dict[ConverterIssueType, str] = {
+    ConverterIssueType.CONVERSION_METRIC_DROPPED: "OSI has no conversion-funnel metric type",
+    ConverterIssueType.PRIVATE_METRIC_DROPPED: "OSI has no visibility modifiers",
+    ConverterIssueType.NATURAL_ENTITY_DROPPED: "OSI has no natural-key entity type",
+    ConverterIssueType.CUMULATIVE_SEMANTICS_LOSS: "OSI expressions cannot represent window or grain semantics; the base aggregation was preserved",
+}
+
+_DROPPED_ISSUE_TYPES = {
+    ConverterIssueType.CONVERSION_METRIC_DROPPED,
+    ConverterIssueType.PRIVATE_METRIC_DROPPED,
+    ConverterIssueType.NATURAL_ENTITY_DROPPED,
+}
 
 
 def _cmd_msi_to_osi(args: argparse.Namespace) -> None:
@@ -28,7 +42,9 @@ def _cmd_msi_to_osi(args: argparse.Namespace) -> None:
 
     if result.issues:
         for issue in result.issues:
-            print(f"[warning] {issue.issue_type.value}: {issue.element_name}", file=sys.stderr)
+            verb = "was dropped" if issue.issue_type in _DROPPED_ISSUE_TYPES else "was converted with loss"
+            reason = _ISSUE_REASON[issue.issue_type]
+            print(f"[WARNING] {issue.issue_type.value}: {issue.element_name} {verb} during conversion because {reason}", file=sys.stderr)
 
     output_path.write_text(result.output.to_osi_yaml())
     print(f"Written to {output_path}", file=sys.stderr)
