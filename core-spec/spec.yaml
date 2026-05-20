@@ -1,5 +1,5 @@
 # OSI - Core Metadata Spec (YAML Schema)
-version: 0.1.2
+version: 0.1.1
 # 
 # Goals:
 # - Standardization: Establish uniform language and structure for semantic model definitions
@@ -20,9 +20,6 @@ dialects:
   - "MAQL"                  # GoodData MAQL (Multi-Dimensional Analytical Query Language)
 
 
-multiplicities:
-  - "ManyToOne"
-  - "OneToOne"
 
 # Supported vendors for custom extensions
 vendors:
@@ -51,10 +48,7 @@ semantic_model:
 
     # Optional: Defines how logical datasets are connected
     # See Relationships section below for detailed structure
-    join_paths: []
-
-    # Optional: Defines the ontology used to give meaning to the data
-    ontology: []
+    relationships: []
 
     # Optional: 
     # These metrics can span one or more logical datasets and use relationships
@@ -124,7 +118,7 @@ datasets:
 # Relationship Schema
 # Defines how logical datasets or semantic models are connected
 # Represents foreign key relationships (many-to-one or one-to-one)
-join_paths:
+relationships:
   # Required: Unique identifier for the relationship
   - name: string
 
@@ -223,108 +217,3 @@ metrics:
     custom_extensions:
       - vendor_name: string  # Must be one of the values from 'vendors' enum above
         data: string
-
----
-# Ontology Schema
-ontology:
-
-  # Required: Unique identifier for the concept
-  - concept: string
-
-    # Optional: Human-readable description of the concept
-    description: string
-
-    # Optional: Relationships in which this concept plays the first role
-    relationships: []
-
-    # Optional: Array of names of relationships that form the preferred identifier of this concept
-    identify_by: []
-
-    # Optional: Array of names of supertype concepts that this concept extends
-    extends: []
-
-    # Optional: Array of expressions that derive the population of this concept
-    derived_by: []
-
-    # Optional: Array of expressions that constrain the population of this concept
-    requires: []
-
-    # Optional: Array of entity maps that map logical fields to entities (when concept is an entity type)
-    entities: []
-
-    # Optional: Array of link trees that map logical fields to relationships
-    links: []
-
-relationships:
-
-  # Required: unique name of the relationship in the context of the declaring concept
-  - name: string
-
-    # Optional: Human-readable description
-    description: string
-
-    # Optional: Multiplicity constraint
-    multiplicity: multiplicities
-
-    # Optional: List of additional roles in this relationship
-    roles: []
-
-    # Optional: Array of expressions that derive links of this relationship
-    derived_by: []
-
-    # Optional: Array of expressions that constrain this relationship's population
-    requires: []
-
-    # Optional Array of string patterns that describe how to verbalize links of
-    # this relationship
-    verbalizes: []
-
-roles:
-
-  # Required: Name of the concept that plays this role
-  - player: string
-
-    # Optional: Role name
-    name: string
-
-entities:
-
-  # Array of entity maps
-  - entity: []
-
-entity:
-
-  # Required: String naming the idenfier relationship whose role is mapped to using either the
-  # expr if the role is played by a value type or the nested entity map if the role is played
-  # by an entity type
-  - role: string
-
-    # Optional: SQL expression whose value maps to the role
-    value: string
-
-    # Optional: Nested entity map that returns an entity object that maps to the role
-    entity: []
-
-links:
-
-  - links_tree_node: []
-
-links_tree_node:
-
-  # Name of the concept whose objects are looked up by this node.
-  # Optional when the node is the root of a tree.
-  - concept: string
-
-    # Optional: Maps fields to a value (when concept is a value type)
-    # Must be present when entity is absent
-    value: string
-
-    # Optional: Maps fields to an entity (when concept is an entity type)
-    # Must be present when value is absent
-    entity: []
-
-    # Optional: Name of relationship whose links are mapped to by this level in the tree 
-    relationship: string
-
-    # Optional: Array of links_tree_node children of this node
-    children: []
