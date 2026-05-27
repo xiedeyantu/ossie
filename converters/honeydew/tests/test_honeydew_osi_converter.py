@@ -710,15 +710,16 @@ class TestOsiToHoneydewToOsiRoundTrip:
         assert f["label"] == "sales"
 
     def test_ai_context_string_preserved(self, tmp_path):
+        ai_ctx_value = "order status, order state"
         model = {"name": "m", "datasets": [{"name": "orders", "source": "db.s.orders",
             "fields": [{"name": "status",
                         "expression": {"dialects": [{"dialect": "ANSI_SQL", "expression": "status"}]},
-                        "ai_context": "order status, order state",
+                        "ai_context": ai_ctx_value,
                         "dimension": {"is_time": False}}]}]}
         sm = self._roundtrip(model, tmp_path)
         f = next(f for f in sm["datasets"][0]["fields"] if f["name"] == "status")
-        # String ai_context is merged into description; exact form may vary
-        assert f.get("description") or f.get("ai_context")
+        # String ai_context is merged into description on OSI→Honeydew; value must be recoverable
+        assert ai_ctx_value in (f.get("description") or "") or f.get("ai_context") == ai_ctx_value
 
     def test_ai_context_dict_preserved(self, tmp_path):
         ctx = {"instructions": "Use for revenue analysis", "synonyms": ["revenue", "sales"]}
@@ -912,6 +913,60 @@ class TestHoneydewToOsiToHoneydewRoundTrip:
         rel = entity["relations"][0]
         assert rel.get("connection_expr", {}).get("sql") == "orders.cid = customers.id AND orders.region = customers.region"
 
+    def test_dataset_attr_display_name_and_format_preserved(self, tmp_path):
+        out_dir = self._roundtrip([{
+            "name": "orders", "keys": ["id"], "key_dataset": "orders",
+            "sql": "DB.S.ORDERS",
+            "dataset_attrs": [
+                {"column": "status", "name": "status", "datatype": "string",
+                 "display_name": "Order Status", "hidden": True, "format_string": "##,###"},
+            ],
+        }], tmp_path)
+        ds = yaml.safe_load((out_dir / "schema/orders/datasets/orders.yml").read_text())
+        attrs = {a["name"]: a for a in ds["attributes"]}
+        assert attrs["status"]["display_name"] == "Order Status"
+        assert attrs["status"]["hidden"] is True
+        assert attrs["status"]["format_string"] == "##,###"
+
+    def test_calc_attr_honeydew_fields_preserved(self, tmp_path):
+        out_dir = self._roundtrip([{
+            "name": "orders", "keys": ["id"], "key_dataset": "orders",
+            "sql": "DB.S.ORDERS", "dataset_attrs": [],
+            "calc_attrs": [{"type": "calculated_attribute", "entity": "orders",
+                            "name": "disc", "datatype": "number",
+                            "sql": "orders.price * 0.9",
+                            "display_name": "Discounted Price",
+                            "timegrain": "day"}],
+        }], tmp_path)
+        calc = yaml.safe_load((out_dir / "schema/orders/attributes/disc.yml").read_text())
+        assert calc["display_name"] == "Discounted Price"
+        assert calc["timegrain"] == "day"
+
+    def test_entity_owner_and_display_name_preserved(self, tmp_path):
+        ws_path = tmp_path / "workspace.yml"
+        ws_path.write_text(yaml.dump({"type": "workspace", "name": "ws"}))
+        base = tmp_path / "schema" / "orders"
+        (base / "datasets").mkdir(parents=True)
+        (base / "orders.yml").write_text(yaml.dump({
+            "type": "entity", "name": "orders", "keys": ["id"],
+            "key_dataset": "orders", "relations": [],
+            "owner": "analytics_team", "display_name": "Orders Table",
+        }))
+        (base / "datasets" / "orders.yml").write_text(yaml.dump({
+            "type": "dataset", "entity": "orders", "name": "orders",
+            "sql": "DB.S.ORDERS", "dataset_type": "table", "attributes": [],
+        }))
+        osi_yaml = convert_honeydew_to_osi(str(tmp_path))
+        files = convert_osi_to_honeydew(osi_yaml)
+        out_dir = tmp_path / "out"
+        for rel_path, content in files.items():
+            p = out_dir / rel_path
+            p.parent.mkdir(parents=True, exist_ok=True)
+            p.write_text(content)
+        entity = yaml.safe_load((out_dir / "schema/orders/orders.yml").read_text())
+        assert entity.get("owner") == "analytics_team"
+        assert entity.get("display_name") == "Orders Table"
+
     def test_calc_attr_with_simple_identifier_sql_preserved(self, tmp_path):
         out_dir = self._roundtrip([{
             "name": "orders", "keys": ["id"], "key_dataset": "orders",
@@ -971,6 +1026,31 @@ class TestBugFixes:
         result = yaml.safe_load(convert_honeydew_to_osi(str(tmp_path)))
         m = result["semantic_model"][0]["metrics"][0]
         assert m.get("ai_context") == "Use for revenue analysis"
+
+    def test_whitespace_expression_skipped(self):
+        model = {"name": "m", "datasets": [{"name": "orders", "source": "db.s.orders", "fields": [{
+            "name": "bad",
+            "expression": {"dialects": [{"dialect": "ANSI_SQL", "expression": "   "}]},
+            "dimension": {"is_time": False},
+        }]}]}
+        files = convert_osi_to_honeydew(_osi(model))
+        ds = yaml.safe_load(files["schema/orders/datasets/orders.yml"])
+        names = [a["name"] for a in ds["attributes"]]
+        assert "bad" not in names
+        assert "schema/orders/attributes/bad.yml" not in files
+
+    def test_non_dict_expression_warns(self):
+        model = {"name": "m", "datasets": [{"name": "orders", "source": "db.s.orders", "fields": [{
+            "name": "bad",
+            "expression": "just_a_string",
+            "dimension": {"is_time": False},
+        }]}]}
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            files = convert_osi_to_honeydew(_osi(model))
+        assert any("must be a mapping" in str(x.message) for x in w)
+        ds = yaml.safe_load(files["schema/orders/datasets/orders.yml"])
+        assert all(a["name"] != "bad" for a in ds["attributes"])
 
     def test_malformed_osi_metadata_json_warns(self, tmp_path):
         ws_path = tmp_path / "workspace.yml"

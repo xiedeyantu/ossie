@@ -164,6 +164,14 @@ def _dataset_to_files(
         entity_dict["keys"] = list(primary_key)
     entity_dict["key_dataset"] = entity_name
 
+    # Restore Honeydew-specific entity fields from HONEYDEW custom_extension
+    entity_hd_hint = _get_honeydew_extension(ds)
+    for key in ("owner", "display_name", "hidden", "folder"):
+        if key in entity_hd_hint:
+            entity_dict[key] = entity_hd_hint[key]
+    if "labels" in entity_hd_hint:
+        entity_dict["labels"] = entity_hd_hint["labels"]
+
     honeydew_relations = []
     for rel in relations:
         hr = _osi_relation_to_honeydew(rel)
@@ -192,7 +200,7 @@ def _dataset_to_files(
             raise HoneydewConversionError(f"Field missing 'name' in dataset '{entity_name}'")
 
         expr = _pick_ansi_expression(field.get("expression"), field_name)
-        if not expr:
+        if not expr or not expr.strip():
             continue
 
         datatype = _osi_field_to_honeydew_datatype(field)
@@ -226,6 +234,8 @@ def _dataset_to_files(
         hd_hint = _get_honeydew_extension(field)
         force_calc = hd_hint.get("type") == "calculated_attribute"
 
+        _hd_attr_keys = ("display_name", "hidden", "folder", "format_string", "timegrain")
+
         if _is_simple_identifier(expr) and not force_calc:
             attr: dict[str, Any] = {"column": expr, "name": field_name, "datatype": datatype}
             if effective_desc:
@@ -234,6 +244,9 @@ def _dataset_to_files(
                 attr["labels"] = labels
             if field_meta:
                 attr["metadata"] = [field_meta]
+            for _k in _hd_attr_keys:
+                if _k in hd_hint:
+                    attr[_k] = hd_hint[_k]
             dataset_attrs.append(attr)
         else:
             calc: dict[str, Any] = {
@@ -249,6 +262,9 @@ def _dataset_to_files(
                 calc["labels"] = labels
             if field_meta:
                 calc["metadata"] = [field_meta]
+            for _k in _hd_attr_keys:
+                if _k in hd_hint:
+                    calc[_k] = hd_hint[_k]
             calc_attrs.append(calc)
 
     # ── dataset YAML ───────────────────────────────────────────────────────────
@@ -276,7 +292,7 @@ def _dataset_to_files(
         if not mname:
             continue
         mexpr = _pick_ansi_expression(metric.get("expression"), mname)
-        if mexpr is None:
+        if not mexpr or not mexpr.strip():
             continue
 
         metric_dict: dict[str, Any] = {
@@ -339,7 +355,7 @@ def _osi_relation_to_honeydew(rel: dict[str, Any]) -> dict[str, Any] | None:
             {"src_field": fc, "target_field": tc}
             for fc, tc in zip(from_cols, to_cols)
         ]
-    elif not from_cols:
+    else:
         hd_ext = _get_honeydew_extension(rel)
         if hd_ext.get("connection_expr"):
             honeydew_rel["connection_expr"] = {"sql": hd_ext["connection_expr"]}
@@ -348,7 +364,10 @@ def _osi_relation_to_honeydew(rel: dict[str, Any]) -> dict[str, Any] | None:
 
 def _pick_ansi_expression(expression: Any, field_name: str) -> str | None:
     """Select the ANSI_SQL expression; fall back to first available dialect."""
+    if expression is None:
+        return None
     if not isinstance(expression, dict):
+        warnings.warn(f"'{field_name}': 'expression' must be a mapping; field will be skipped")
         return None
     dialects = expression.get("dialects") or []
     if not dialects:
@@ -942,8 +961,12 @@ def main() -> None:
             print(f"Error: {e}", file=sys.stderr)
             sys.exit(1)
 
+        output_abs = os.path.abspath(args.output)
         for rel_path, content in files.items():
-            full_path = os.path.join(args.output, rel_path)
+            full_path = os.path.normpath(os.path.join(output_abs, rel_path))
+            if not full_path.startswith(output_abs + os.sep):
+                print(f"Error: refusing to write outside output directory: {rel_path}", file=sys.stderr)
+                sys.exit(1)
             os.makedirs(os.path.dirname(full_path), exist_ok=True)
             with open(full_path, "w") as f:
                 f.write(content)
