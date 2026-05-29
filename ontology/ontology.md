@@ -1,6 +1,6 @@
 # OSI - Ontology Specification
 
-**Version:** 0.1.1
+**Version:** 0.2.0.dev0
 
 ## Table of Contents
 
@@ -70,6 +70,14 @@ hierarchically, grouping each relationship under the concept that plays its firs
 | `ai_context` | string/object | No | Additional context for AI tools |
 | `ontology` | list | Yes | Concepts and relationships they group that form this ontology |
 
+Each component of an ontology defines a concept and a list of relationships where that
+concept plays the first role:
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `concept` | Concept | Yes | A concept in this ontology |
+| `relationships` | list | No | Relationships where this concept plays the first role |
+
 ### Concepts
 
 Concepts represent the types of things that have meaning in a business setting, e.g., person, company,
@@ -83,14 +91,12 @@ Concepts have the following schema:
 | `name` | string | Yes | Unique name of this concept |
 | `type` | ConceptType | Yes | Entity type or value type |
 | `description` | string | No | Human-readable description |
-| `relationships` | list | No | Relationships where this concept plays the first role |
 | `extends` | list | No | Names of this concept's supertypes |
 | `derived_by` | list | No | Expressions that derive this concept's population |
 | `identify_by` | list | No | Names of relationships that uniquely reference objects of this concept |
 | `requires` | list | No | Expressions that constrain this concept's population |
 
-Each concept is either an entity type or a value type, and each concept groups any relationships
-where that concept plays the first role.
+Each concept is either an entity type or a value type.
 
 ### Extends
 
@@ -352,12 +358,12 @@ ontology:
       - name: offers_in
         roles:
           - concept: Store
-        verbalizations: [ "{Item} is offered for sale in {Store}", "{Store} offers sale of {Item}" ]  
+        verbalizes: [ "{Item} is offered for sale in {Store}", "{Store} offers sale of {Item}" ]
       - name: total_sales_in
         roles:
           - concept: Store
           - concept: Amount
-        verbalizations: [ "{Item} sold for cumulative {Amount} in {Store}" ] 
+        verbalizes: [ "{Item} sold for cumulative {Amount} in {Store}" ]
         requires:
           - "Amount > 0.0"
           - "Item.offers_in(Store)"
@@ -383,7 +389,7 @@ Concept mappings have the following schema:
 | Field | Type | Required | Description |
 |---------------|---------|-----|-------|
 | `concept`         | string  | Yes | Names the concept whose part of the ontology is covered by this concept mapping |
-| `object_mappings` | string  | if no `link_mappings` | Mappings that populate this concept |
+| `object_mappings` | list  | if no `link_mappings` | Mappings that populate this concept |
 | `link_mappings`   | list  | if no `object_mappings` | Mappings that populate the relationships grouped under this concept |
 
 ### Object mappings
@@ -523,20 +529,20 @@ ontology:
       - name: nr
         roles: [ concept: SkuNr ]
         multiplicity: OneToOne
-        verbalises: "{Item} is identified by {SkuNr}"
+        verbalizes: "{Item} is identified by {SkuNr}"
       - name: active     # A unary relationship
         verbalizes: [ "{Item} is actively sold" ]
       - name: active_in
         roles: [ concept: Store ]
-        verbalises: [ "{Item} is actively sold in {Store}" ]
+        verbalizes: [ "{Item} is actively sold in {Store}" ]
       - name: returned_in_for
         roles: [ concept: Store, concept: Amount ]
         verbalizes: [ "{Item} returned in {Store} for {Amount}" ]
-        multiplicitly: ManyToOne
+        multiplicity: ManyToOne
       - name: sold_in_for
         roles: [ concept: Store, concept: Amount ]
         verbalizes: [ "{Item} sells in {Store} for {Amount}" ]
-        multiplicitly: ManyToOne
+        multiplicity: ManyToOne
 ```
 declares one unary, one binary, and two ternary relationships whose links would be tuples
 of the form (Item), (Item, Store), and (Item, Store, Amount) respectively. And suppose a
@@ -576,7 +582,7 @@ though `Store` plays a role in three of the relationships.
 
 ## Version History
 
-- **0.1.1** (2026-05-21): Basic support for ontologies and logical schema mappings
+- **0.2.0.dev0** (2026-05-29): Basic support for ontologies and logical schema mappings
   - Core ontology structure: Concepts, relationships, and business rules (requires and derived_by)
   - Schema mappings from one or more logical models into an ontology
 

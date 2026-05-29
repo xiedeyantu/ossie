@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://raw.githubusercontent.com/open-semantic-interchange/OSI/main/ontology/ontology.json",
+  "$id": "https://github.com/open-semantic-interchange/OSI/core-spec/osi-schema.json",
   "title": "OSI Ontology Metadata Specification",
   "description": "JSON Schema for validating OSI (Open Semantic Interoperability) ontology definitions",
   "type": "object",
