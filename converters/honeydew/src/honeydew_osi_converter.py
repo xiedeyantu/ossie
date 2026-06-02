@@ -716,9 +716,10 @@ def _entity_to_osi_dataset(entity_data: dict[str, Any]) -> dict[str, Any]:
                 field["ai_context"] = {"synonyms": list(attr_labels)}
 
             # Restore label: prefer osi_meta (exact round-trip), else first Honeydew label
+            # Don't set label when labels came from ai_context.synonyms (osi_meta has ai_context)
             if "label" in attr_osi_meta:
                 field["label"] = attr_osi_meta["label"]
-            elif attr_labels:
+            elif attr_labels and not attr_osi_meta.get("ai_context"):
                 field["label"] = attr_labels[0]
 
             # Honeydew-specific metadata → HONEYDEW custom_extension
@@ -770,7 +771,7 @@ def _entity_to_osi_dataset(entity_data: dict[str, Any]) -> dict[str, Any]:
 
         if "label" in calc_osi_meta:
             field["label"] = calc_osi_meta["label"]
-        elif calc_labels:
+        elif calc_labels and not calc_osi_meta.get("ai_context"):
             field["label"] = calc_labels[0]
 
         calc_honeydew_extra = {

@@ -858,7 +858,6 @@ def test_honeydew_to_osi_duplicate_relations_deduplicated(tmp_path):
                         "description": "Use for revenue analysis",
                         "ai_context": {"instructions": "Use for revenue analysis",
                                        "synonyms": ["revenue", "sales"]},
-                        "label": "revenue",
                         "custom_extensions": [
                             {"vendor_name": "HONEYDEW",
                              "data": '{"labels": ["revenue", "sales"]}'},
